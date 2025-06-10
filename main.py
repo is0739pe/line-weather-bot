@@ -80,3 +80,25 @@ def get_weather_from_api(city_name: str) -> str:
         print(f"予期せぬエラーが発生しました: {e}")
         return "天気情報の取得中に予期せぬエラーが発生しました。"
     
+    @app.post("/callbagk") # LINEからのWebhookはこのURLにPOSTリクエストで届く
+    async def callback(request: Request):
+        #LINEからのリクエスト署名を検証
+        signature = request.headers.get('X-Line-Signature')
+        if signature is None:
+            raise HTTPException(status_code=400, detail="X-Line-Signature header not found")
+        
+        #リクエストボディを取得
+        body = await request.body()
+        body_str = body.decode('utf-8')
+
+        try:
+            # WebhookHandlerで署名検証とイベント処理
+            handler.handle(body_str, signature)
+        except InvalidSignatureError:
+            print("署名が無効です。LINE Channel Secretを確認してください。")
+            raise HTTPException(status_code=400, detail="Invalid signature")
+        except Exception as e:
+            print(f"Webhook処理中にエラー: {e}")
+            raise HTTPException(status_code=500, detail=f"Error processing webhook: {e}")
+        
+        return 'OK' # LINEプラットフォームに正常処理を伝える
