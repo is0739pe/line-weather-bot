@@ -121,18 +121,29 @@ def handle_message(event):
     user_message = event.message.text # ユーザが送信したメッセージ(都市名)
     print(f"受信メッセージ: {user_message}")
 
-    # 天気情報を取得
-    weather_reply = get_weather_from_api(user_message)
+    #特定のメッセージに返信
+    #キーワードをと返信を辞書で定義
+    keyword_responses = {
+        "ありがとう": "どういたしまして！お役に立てて良かったです！",
+        "こんにちは": "こんにちは！都市名を入力すると、天気を調べますよ。",
+        "おはよう": "おはようございます！良い一日を！"
+    }
+    if user_message in keyword_responses:
+        reply_text = keyword_responses[user_message]
+    else:
+        # 天気情報を取得
+        weather_reply = get_weather_from_api(user_message)
+        reply_text = weather_reply
 
     # ユーザに天気情報を返信
     try:
         line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=weather_reply)]
+                messages=[TextMessage(text=reply_text)]
             )
         )
-        print(f"返信メッセージ: {weather_reply}")
+        print(f"返信メッセージ: {reply_text}")
     except Exception as e:
         print(f"LINEへの返信中にエラー: {e}")
 
