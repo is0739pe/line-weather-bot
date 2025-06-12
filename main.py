@@ -1,8 +1,21 @@
 import os
 import requests # HTTPリクエスト用
+import uvicorn
+
 from fastapi import FastAPI, Request, HTTPException
 from linebot.v3.webhook import WebhookHandler
-from linebot.v3.messaging import Configuration,ApiClient,MessagingApi,ReplyMessageRequest,TextMessageContent
+from linebot.v3.webhooks import (
+    MessageEvent,
+    TextMessageContent,
+)
+from linebot.v3.messaging import (
+    Configuration,
+    ApiClient,
+    MessagingApi,
+    ReplyMessageRequest,
+    TextMessage
+)
+from dotenv import load_dotenv
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -55,8 +68,8 @@ def get_weather_from_api(city_name: str) -> str:
             f"【{city_name}の現在の天気】\n"
             f"天気: {weather_description}\n"
             f"気温: {temp}°C\n"
-            f"最低気温: {temp_min}°C\n"
-            f"最高気温: {temp_max}°C\n"
+            # f"最低気温: {temp_min}°C\n"
+            # f"最高気温: {temp_max}°C\n"
             f"湿度: {humidity}%"
         )
         return reply_text
@@ -80,25 +93,52 @@ def get_weather_from_api(city_name: str) -> str:
         print(f"予期せぬエラーが発生しました: {e}")
         return "天気情報の取得中に予期せぬエラーが発生しました。"
     
-    @app.post("/callbagk") # LINEからのWebhookはこのURLにPOSTリクエストで届く
-    async def callback(request: Request):
-        #LINEからのリクエスト署名を検証
-        signature = request.headers.get('X-Line-Signature')
-        if signature is None:
-            raise HTTPException(status_code=400, detail="X-Line-Signature header not found")
+@app.post("/callback") # LINEからのWebhookはこのURLにPOSTリクエストで届く
+async def callback(request: Request):
+    #LINEからのリクエスト署名を検証
+    signature = request.headers.get('X-Line-Signature')
+    if signature is None:
+        raise HTTPException(status_code=400, detail="X-Line-Signature header not found")
         
-        #リクエストボディを取得
-        body = await request.body()
-        body_str = body.decode('utf-8')
+    #リクエストボディを取得
+    body = await request.body()
+    body_str = body.decode('utf-8')
 
-        try:
-            # WebhookHandlerで署名検証とイベント処理
-            handler.handle(body_str, signature)
-        except InvalidSignatureError:
-            print("署名が無効です。LINE Channel Secretを確認してください。")
-            raise HTTPException(status_code=400, detail="Invalid signature")
-        except Exception as e:
-            print(f"Webhook処理中にエラー: {e}")
-            raise HTTPException(status_code=500, detail=f"Error processing webhook: {e}")
+    try:
+        # WebhookHandlerで署名検証とイベント処理
+        handler.handle(body_str, signature)
+    except InvalidSignatureError:
+        print("署名が無効です。LINE Channel Secretを確認してください。")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        print(f"Webhook処理中にエラー: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing webhook: {e}")
         
-        return 'OK' # LINEプラットフォームに正常処理を伝える
+    return 'OK' # LINEプラットフォームに正常処理を伝える
+
+@handler.add(MessageEvent, message=TextMessageContent) # テキストメッセージをを受信したときの処理
+def handle_message(event):
+    user_message = event.message.text # ユーザが送信したメッセージ(都市名)
+    print(f"受信メッセージ: {user_message}")
+
+    # 天気情報を取得
+    weather_reply = get_weather_from_api(user_message)
+
+    # ユーザに天気情報を返信
+    try:
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=weather_reply)]
+            )
+        )
+        print(f"返信メッセージ: {weather_reply}")
+    except Exception as e:
+        print(f"LINEへの返信中にエラー: {e}")
+
+# uvicornサーバーを起動するための設定(Renderで実行する際に必要)
+if __name__ == "__main__":
+    # RenderはPOST環境変数を自動で設定します。ローカルではデフォルト8000番
+    port = int(os.getenv("PORT", 8000))
+    # Render上で実行する場合、ホストは"0.0.0.0"にする
+    uvicorn.run(app, host="0.0.0.0", port=port)
