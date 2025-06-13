@@ -147,13 +147,14 @@ def handle_message(event):
         # 登録で始まるメッセージか確認
         if user_message.startswith("登録"):
             # 登録以降の文字を都市名として取得
-            city = user_message.split(" ", 1)[1]
-            # city = user_message.split("　", 1)[1]
-            if not city:
+            parts = user_message.replace("　"," ").split(" ", 1)[1]
+
+            if len(parts) < 2 or not parts[1].strip():
                 reply_text = "都市名が入力されていません。「登録 東京」のように入力してください"
             else:
+                city = parts[1].strip()
                 # データベースからユーザを検索
-                db_user = db.query(models.User).filter(models.User.use_id == line_user_id).first()
+                db_user = db.query(models.User).filter(models.User.user_id == line_user_id).first()
                 if db_user:
                     # すでに登録済みなら都市名を更新
                     db_user.city = city
@@ -162,7 +163,7 @@ def handle_message(event):
                     # 新規ユーザなら新規登録
                     new_user = models.User(user_id=line_user_id, city=city)
                     db.add(new_user)
-                    reply_text = f"通知都市を「{city}に登録しました。毎朝通知します！」"
+                    reply_text = f"通知都市を「{city}」に登録しました。毎朝通知します！"
 
                 db.commit()
         elif user_message in keyword_responses:
