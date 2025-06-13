@@ -27,6 +27,9 @@ from linebot.v3.messaging import (
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
+# データベースにテーブルが存在しない場合、自動的に作成
+models.Base.metadata.create_all(bind=database.engine)
+
 # FastAPIアプリケーションのインスタンスを作成
 app = FastAPI()
 
@@ -126,21 +129,51 @@ async def callback(request: Request):
 @handler.add(MessageEvent, message=TextMessageContent) # テキストメッセージをを受信したときの処理
 def handle_message(event):
     user_message = event.message.text # ユーザが送信したメッセージ(都市名)
+    line_user_id = event.source.user_id # ユーザID
+    reply_text = ""
     print(f"受信メッセージ: {user_message}")
 
-    #特定のメッセージに返信
-    #キーワードをと返信を辞書で定義
+    # 特定のメッセージに返信
+    #キーワードと返信を辞書で定義
     keyword_responses = {
         "ありがとう": "どういたしまして！お役に立てて良かったです！",
         "こんにちは": "こんにちは！都市名を入力すると、天気を調べますよ。",
         "おはよう": "おはようございます！良い一日を！"
     }
-    if user_message in keyword_responses:
-        reply_text = keyword_responses[user_message]
-    else:
-        # 天気情報を取得
-        weather_reply = get_weather_from_api(user_message)
-        reply_text = weather_reply
+
+    # データベースセッションを開始
+    db = database.SessionLocal()
+    try:
+        # 登録で始まるメッセージか確認
+        if user_message.startswith("登録"):
+            # 登録以降の文字を都市名として取得
+            city = user_message.split(" ", 1)[1]
+            city = user_message.split("　", 1)[1]
+            if not city:
+                reply_text = "都市名が入力されていません。「登録 東京」のように入力してください"
+            else:
+                # データベースからユーザを検索
+                db_user = db.query(models.User).filter(models.User.use_id == line_user_id).first()
+                if db_user:
+                    # すでに登録済みなら都市名を更新
+                    db_user.city = city
+                    reply_text = f"都市名を「{city}」に更新しました。"
+                else:
+                    # 新規ユーザなら新規登録
+                    new_user = models.User(user_id=line_user_id, city=city)
+                    db.add(new_user)
+                    reply_text = f"通知都市を「{city}に登録しました。毎朝通知します！」"
+
+                db.commit()
+        elif user_message in keyword_responses:
+            reply_text = keyword_responses[user_message]  
+        else:
+            # 天気情報を取得
+            reply_text = get_weather_from_api(user_message)
+
+    # データベースセッションを閉じる
+    finally:
+        db.close()
 
     # ユーザに天気情報を返信
     try:
