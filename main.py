@@ -1,12 +1,20 @@
 import os
 import requests # HTTPリクエスト用
 import uvicorn
-
 from fastapi import FastAPI, Request, HTTPException
+from dotenv import load_dotenv
+
+# データベース関連
+import database
+import models
+from sqlalchemy.orm import Session
+
 from linebot.v3.webhook import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
+    FollowEvent,
 )
 from linebot.v3.messaging import (
     Configuration,
@@ -15,7 +23,6 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     TextMessage
 )
-from dotenv import load_dotenv
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
