@@ -147,7 +147,7 @@ def handle_message(event):
         # 登録で始まるメッセージか確認
         if user_message.startswith("登録"):
             # 登録以降の文字を都市名として取得
-            parts = user_message.replace("　"," ").split(" ", 1)[1]
+            parts = user_message.replace("　"," ").split(" ", 1)
 
             if len(parts) < 2 or not parts[1].strip():
                 reply_text = "都市名が入力されていません。「登録 東京」のように入力してください"
