@@ -65,3 +65,6 @@ def send_daily_weather_forecast():
 
     print("===== 天気通知バッチ処理終了 =====")
 
+# このファイルが直接実行されたときに、上記の関数を呼び出す
+if __name__ == "__main__":
+    send_daily_weather_forecast()
